@@ -3,9 +3,17 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 
 import streamlit as st
 from pathlib import Path
-from dotenv import load_dotenv
+import os
+import tempfile
+import json
 
-load_dotenv()                        # .env / Cloud Secrets
+# Streamlit Cloudの場合は環境変数を直接使用
+if os.getenv('STREAMLIT_CLOUD'):
+    # Streamlit Cloudの環境変数を使用
+    pass
+else:
+    # ローカル環境の場合は.envファイルを読み込む
+    load_dotenv()
 
 # ── 既存ロジック ───────────────────────────────
 from main import run as pipeline_run  # run(url, method)
@@ -62,34 +70,42 @@ backend_enum = Backend.GEMINI
 if st.button("▶ 要約する") and url:
     with st.spinner("⚙️ 解析中…少し待ってね"):
         try:
-            # 1) 字幕 JSON 生成
-            pipeline_run(url, "caption")           # run() は「字幕のみ」仕様
-            vid = parse_url(url)
-            json_path = Path(f"outputs/{vid}.json")
+            # 一時ディレクトリの作成
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_dir_path = Path(temp_dir)
+                
+                # 1) 字幕 JSON 生成
+                vid = parse_url(url)
+                json_path = temp_dir_path / f"{vid}.json"
+                md_path = temp_dir_path / f"{vid}_summary.md"
+                
+                # 字幕取得と保存
+                pipeline_run(url, "caption")
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(tr, f, ensure_ascii=False, indent=2)
 
-            # 2) 要約生成
-            md_path = Path(f"outputs/{vid}_summary.md")
-            summarize(json_path, md_path, backend=backend_enum, prompt=prompt)
+                # 2) 要約生成
+                summarize(json_path, md_path, backend=backend_enum, prompt=prompt)
 
-            # 3) 結果表示
-            st.success("✅ 完了！")
+                # 3) 結果表示
+                st.success("✅ 完了！")
 
-            st.subheader("📝 要約")
-            st.code(md_path.read_text(), language="markdown")
+                st.subheader("📝 要約")
+                st.code(md_path.read_text(), language="markdown")
 
-            st.subheader("📄 字幕 JSON")
-            with st.expander("クリックで表示 / コピー"):
-                st.code(json_path.read_text(), language="json")
+                st.subheader("📄 字幕 JSON")
+                with st.expander("クリックで表示 / コピー"):
+                    st.code(json_path.read_text(), language="json")
 
-            col_dl1, col_dl2 = st.columns(2)
-            with col_dl1:
-                st.download_button("⬇ transcript (.json)",
-                                   json_path.read_bytes(),
-                                   file_name=f"{vid}.json")
-            with col_dl2:
-                st.download_button("⬇ summary (.md)",
-                                   md_path.read_bytes(),
-                                   file_name=f"{vid}_summary.md")
+                col_dl1, col_dl2 = st.columns(2)
+                with col_dl1:
+                    st.download_button("⬇ transcript (.json)",
+                                       json_path.read_bytes(),
+                                       file_name=f"{vid}.json")
+                with col_dl2:
+                    st.download_button("⬇ summary (.md)",
+                                       md_path.read_bytes(),
+                                       file_name=f"{vid}_summary.md")
 
         except Exception as e:
             st.error(f"⚠ エラー: {e}")
