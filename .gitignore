@@ -21,9 +21,8 @@ wheels/
 *.egg
 
 # Virtual Environment
-venv/
 .venv/
-env/
+venv/
 ENV/
 
 # IDE
@@ -31,7 +30,18 @@ ENV/
 .vscode/
 *.swp
 *.swo
+
+# Environment variables
+.env
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Project specific
 outputs/
@@ -39,7 +49,6 @@ outputs/
 *.wav
 *.mp4
 *.txt
-.env
 
 # Streamlit
 .streamlit/
