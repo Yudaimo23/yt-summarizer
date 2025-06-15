@@ -48,7 +48,6 @@ outputs/
 *.m4a
 *.wav
 *.mp4
-*.txt
 
 # Streamlit
 .streamlit/
