@@ -8,13 +8,7 @@ import tempfile
 import json
 
 # Streamlit Cloudの場合は環境変数を直接使用
-if os.getenv('STREAMLIT_CLOUD'):
-    # Streamlit Cloudの環境変数を使用
-    pass
-else:
-    # ローカル環境の場合は.envファイルを読み込む
-    load_dotenv()
-
+os.getenv('STREAMLIT_CLOUD')
 # ── 既存ロジック ───────────────────────────────
 from main import run as pipeline_run  # run(url, method)
 from summarizer import summarize, Backend
