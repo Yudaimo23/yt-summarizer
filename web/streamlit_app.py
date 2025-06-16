@@ -9,6 +9,7 @@ import json
 import logging
 import time
 from datetime import datetime
+import traceback  # 追加
 
 # ロギングの設定
 logging.basicConfig(
@@ -91,6 +92,11 @@ def reset_session():
     st.session_state.processing = False
     st.session_state.last_processed = None
 
+# 環境変数のチェック
+if not os.getenv('GOOGLE_API_KEY'):
+    st.error("GOOGLE_API_KEYが設定されていません。Streamlit Cloudの環境変数を確認してください。")
+    st.stop()
+
 url = st.text_input("YouTube URL", placeholder="https://youtu.be/...")
 st.info("※ 字幕付き動画のみ対応しています（音声文字起こしは行いません）")
 
@@ -156,6 +162,9 @@ if st.button("▶ 要約する") and url:
         error_message = f"エラーが発生しました: {str(e)}"
         update_log(error_message, "error")
         st.error(error_message)
+        # デバッグ情報を表示
+        st.error("デバッグ情報:")
+        st.code(traceback.format_exc())
 
 # 処理状態の表示
 if st.session_state.processing:
