@@ -38,15 +38,18 @@ def _llm_call(text: str, backend: Backend, prompt: str) -> str:
         res = mdl.generate_content(f"{prompt}\n\n{text}")
         return res.text.strip()
 
-def summarize(infile: Path, outfile: Path,
-              backend: Backend = Backend.OPENAI,
-              prompt: str = "日本語で3行、各行30文字以内で要約してください。") -> Path:
-
-    transcript = json.loads(infile.read_text())
-    limit = 3000 if backend == Backend.OPENAI else 7000   # ← flash 入力余裕分
-    first_pass = [_llm_call(c, backend, prompt)
-                  for c in _chunk(transcript, limit)]
-
-    final = _llm_call("\n".join(first_pass), backend, prompt)
-    outfile.write_text(final, encoding="utf-8")
-    return outfile
+def summarize(transcript: list[dict], backend: Backend = Backend.GEMINI, prompt: str = None) -> str:
+    """
+    字幕データを要約する
+    """
+    # 字幕テキストを結合
+    text = "\n".join([t["text"] for t in transcript])
+    
+    # 要約生成
+    if backend == Backend.GEMINI:
+        # Geminiを使用した要約
+        summary = generate_summary_with_gemini(text, prompt)
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
+    
+    return summary

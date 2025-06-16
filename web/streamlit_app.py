@@ -63,7 +63,7 @@ Each bullet ≤ 25 words. Keep it concise but informative.
 
 # ── Streamlit UI ────────────────────────────────
 st.set_page_config(page_title="YT-Summarizer", page_icon="🎬")
-st.title("�� YouTube 要約くん")
+st.title("🎬 YouTube 要約くん")
 
 # セッション状態の初期化
 init_session_state()
@@ -96,79 +96,66 @@ st.info("※ 字幕付き動画のみ対応しています（音声文字起こ�
 
 # ① プリセット選択 → テキストエリア連動
 preset_name = st.selectbox("🗂 プリセット選択", list(PROMPT_PRESETS.keys()))
-if st.session_state.preset != preset_name:
-    st.session_state.prompt = PROMPT_PRESETS[preset_name]
-    st.session_state.preset = preset_name
+if "prompt" not in st.session_state or st.session_state.get("preset") != preset_name:
+    st.session_state["prompt"] = PROMPT_PRESETS[preset_name]
+    st.session_state["preset"] = preset_name
 
 # --- テキストエリアは「指示文」だけ編集させる ---
 prompt = st.text_area("📝 要約プロンプト (指示文だけ書く)",
-                      value=st.session_state.prompt, height=180)
+                      value=st.session_state["prompt"], height=180)
 
 # ② バックエンド選択を削除し、常にGeminiを使用
 backend_enum = Backend.GEMINI
 
 # ③ 実行ボタン
-if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
-    if st.session_state.processing:
-        update_log("別の処理が実行中です。しばらくお待ちください。", "warning")
-        st.stop()
-    
+if st.button("▶ 要約する") and url:
     try:
-        st.session_state.processing = True
         update_log("処理を開始します...")
         
         with st.spinner("⚙️ 解析中…少し待ってね"):
-            # 一時ディレクトリの作成
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_dir_path = Path(temp_dir)
-                
-                # 1) 字幕 JSON 生成
-                update_log("動画の字幕を取得中...")
-                vid = parse_url(url)
-                json_path = temp_dir_path / f"{vid}.json"
-                md_path = temp_dir_path / f"{vid}_summary.md"
-                
-                # 字幕取得と保存
-                update_log("字幕を処理中...")
-                transcript = pipeline_run(url, "caption")
-                with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(transcript, f, ensure_ascii=False, indent=2)
+            # 1) 字幕 JSON 生成
+            update_log("動画の字幕を取得中...")
+            vid = parse_url(url)
+            
+            # 字幕取得
+            update_log("字幕を処理中...")
+            transcript = pipeline_run(url, "caption")
+            
+            # 字幕データをセッションに保存
+            st.session_state["transcript"] = transcript
+            
+            # 2) 要約生成
+            update_log("要約を生成中...")
+            summary = summarize(transcript, backend=backend_enum, prompt=prompt)
+            
+            # 要約をセッションに保存
+            st.session_state["summary"] = summary
 
-                # 2) 要約生成
-                update_log("要約を生成中...")
-                summarize(json_path, md_path, backend=backend_enum, prompt=prompt)
+            # 3) 結果表示
+            update_log("処理が完了しました！", "info")
+            st.success("✅ 完了！")
 
-                # 3) 結果表示
-                update_log("処理が完了しました！", "info")
-                st.success("✅ 完了！")
+            st.subheader("📝 要約")
+            st.code(summary, language="markdown")
 
-                st.subheader("📝 要約")
-                st.code(md_path.read_text(), language="markdown")
+            st.subheader("📄 字幕 JSON")
+            with st.expander("クリックで表示 / コピー"):
+                st.code(json.dumps(transcript, ensure_ascii=False, indent=2), language="json")
 
-                st.subheader("📄 字幕 JSON")
-                with st.expander("クリックで表示 / コピー"):
-                    st.code(json_path.read_text(), language="json")
-
-                col_dl1, col_dl2 = st.columns(2)
-                with col_dl1:
-                    st.download_button("⬇ transcript (.json)",
-                                       json_path.read_bytes(),
-                                       file_name=f"{vid}.json")
-                with col_dl2:
-                    st.download_button("⬇ summary (.md)",
-                                       md_path.read_bytes(),
-                                       file_name=f"{vid}_summary.md")
-
-                # 処理完了時刻を記録
-                st.session_state.last_processed = time.time()
+            col_dl1, col_dl2 = st.columns(2)
+            with col_dl1:
+                st.download_button("⬇ transcript (.json)",
+                                   json.dumps(transcript, ensure_ascii=False, indent=2).encode('utf-8'),
+                                   file_name=f"{vid}.json")
+            with col_dl2:
+                st.download_button("⬇ summary (.md)",
+                                   summary.encode('utf-8'),
+                                   file_name=f"{vid}_summary.md")
 
     except Exception as e:
         error_message = f"エラーが発生しました: {str(e)}"
         update_log(error_message, "error")
         st.error(error_message)
-    
-    finally:
-        reset_session()  # セッション状態をリセット
 
 # 処理状態の表示
 if st.session_state.processing:

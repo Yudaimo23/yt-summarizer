@@ -10,23 +10,9 @@ def run(url: str, method: str, backend: Backend = Backend.GEMINI):
     try:
         tr = get_transcript(vid)
         print("✓ caption API")
-    except Exception as e:
-        sys.exit("× この動画には字幕がありません（処理をスキップします）")
-
-    # 一時ディレクトリの作成
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_dir_path = Path(temp_dir)
-        
-        # JSONファイルの保存
-        json_path = temp_dir_path / f"{vid}.json"
-        json_path.write_text(json.dumps(tr, ensure_ascii=False, indent=2))
-        
-        # 要約の生成と保存
-        md_path = temp_dir_path / f"{vid}_summary.md"
-        summarize(json_path, md_path, backend=backend)
-        print(f"✓ summary saved → {md_path}")
-        
         return tr  # 字幕データを返す
+    except Exception as e:
+        raise Exception("× この動画には字幕がありません（処理をスキップします）")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
