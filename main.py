@@ -12,7 +12,7 @@ def run(url: str, method: str, backend: Backend = Backend.GEMINI):
         print("✓ caption API")
         return tr  # 字幕データを返す
     except Exception as e:
-        raise Exception("× この動画には字幕がありません（処理をスキップします）")
+        raise Exception(str(e))  # エラーメッセージをそのまま伝播
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
