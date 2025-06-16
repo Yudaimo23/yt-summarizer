@@ -18,10 +18,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # セッション状態の初期化
-if 'processing' not in st.session_state:
-    st.session_state.processing = False
-if 'last_processed' not in st.session_state:
-    st.session_state.last_processed = None
+def init_session_state():
+    if 'processing' not in st.session_state:
+        st.session_state.processing = False
+    if 'last_processed' not in st.session_state:
+        st.session_state.last_processed = None
+    if 'prompt' not in st.session_state:
+        st.session_state.prompt = PROMPT_PRESETS["▼ 標準（5行／40字）"]
+    if 'preset' not in st.session_state:
+        st.session_state.preset = "▼ 標準（5行／40字）"
 
 # Streamlit Cloudの場合は環境変数を直接使用
 os.getenv('STREAMLIT_CLOUD')
@@ -58,7 +63,10 @@ Each bullet ≤ 25 words. Keep it concise but informative.
 
 # ── Streamlit UI ────────────────────────────────
 st.set_page_config(page_title="YT-Summarizer", page_icon="🎬")
-st.title("🎬 YouTube 要約くん")
+st.title("�� YouTube 要約くん")
+
+# セッション状態の初期化
+init_session_state()
 
 # ログ表示用のエリア
 log_container = st.empty()
@@ -78,18 +86,23 @@ def update_log(message, level="info"):
         logger.info(message)
         st.info(log_message)
 
+def reset_session():
+    """セッション状態をリセットする関数"""
+    st.session_state.processing = False
+    st.session_state.last_processed = None
+
 url = st.text_input("YouTube URL", placeholder="https://youtu.be/...")
 st.info("※ 字幕付き動画のみ対応しています（音声文字起こしは行いません）")
 
 # ① プリセット選択 → テキストエリア連動
 preset_name = st.selectbox("🗂 プリセット選択", list(PROMPT_PRESETS.keys()))
-if "prompt" not in st.session_state or st.session_state.get("preset") != preset_name:
-    st.session_state["prompt"] = PROMPT_PRESETS[preset_name]
-    st.session_state["preset"] = preset_name
+if st.session_state.preset != preset_name:
+    st.session_state.prompt = PROMPT_PRESETS[preset_name]
+    st.session_state.preset = preset_name
 
 # --- テキストエリアは「指示文」だけ編集させる ---
 prompt = st.text_area("📝 要約プロンプト (指示文だけ書く)",
-                      value=st.session_state["prompt"], height=180)
+                      value=st.session_state.prompt, height=180)
 
 # ② バックエンド選択を削除し、常にGeminiを使用
 backend_enum = Backend.GEMINI
@@ -117,9 +130,9 @@ if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
                 
                 # 字幕取得と保存
                 update_log("字幕を処理中...")
-                transcript = pipeline_run(url, "caption")  # 戻り値を保存
+                transcript = pipeline_run(url, "caption")
                 with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(transcript, f, ensure_ascii=False, indent=2)  # transcriptを使用
+                    json.dump(transcript, f, ensure_ascii=False, indent=2)
 
                 # 2) 要約生成
                 update_log("要約を生成中...")
@@ -155,8 +168,14 @@ if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
         st.error(error_message)
     
     finally:
-        st.session_state.processing = False
+        reset_session()  # セッション状態をリセット
 
 # 処理状態の表示
 if st.session_state.processing:
     st.warning("処理中です...")
+
+# 新しい処理を開始するためのリセットボタン
+if st.session_state.last_processed is not None:
+    if st.button("🔄 新しい処理を開始"):
+        reset_session()
+        st.experimental_rerun()
