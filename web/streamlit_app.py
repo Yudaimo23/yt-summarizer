@@ -141,22 +141,85 @@ if st.button("▶ 要約する") and url:
             update_log("処理が完了しました！", "info")
             st.success("✅ 完了！")
 
+            # 要約セクション
             st.subheader("📝 要約")
-            st.code(summary, language="markdown")
+            
+            # コピーボタンと要約テキストを横に並べる
+            col_copy, col_text = st.columns([1, 5])
+            with col_copy:
+                if st.button("📋 コピー", key="copy_summary"):
+                    st.write(f'<script>navigator.clipboard.writeText(`{summary}`)</script>', unsafe_allow_html=True)
+                    st.success("コピーしました！")
+            
+            # 要約テキストを表示（モバイル対応）
+            st.markdown(summary)
 
+            # 字幕セクション
             st.subheader("📄 字幕 JSON")
-            with st.expander("クリックで表示 / コピー"):
-                st.code(json.dumps(transcript, ensure_ascii=False, indent=2), language="json")
+            
+            # コピーボタンとJSON表示を横に並べる
+            col_copy_json, col_json = st.columns([1, 5])
+            with col_copy_json:
+                if st.button("📋 コピー", key="copy_json"):
+                    json_str = json.dumps(transcript, ensure_ascii=False, indent=2)
+                    st.write(f'<script>navigator.clipboard.writeText(`{json_str}`)</script>', unsafe_allow_html=True)
+                    st.success("コピーしました！")
+            
+            # JSONを表示（モバイル対応）
+            with st.expander("クリックで表示 / コピー", expanded=True):
+                st.json(transcript)
 
+            # ダウンロードボタン（モバイル対応）
+            st.subheader("💾 ダウンロード")
             col_dl1, col_dl2 = st.columns(2)
             with col_dl1:
-                st.download_button("⬇ transcript (.json)",
-                                   json.dumps(transcript, ensure_ascii=False, indent=2).encode('utf-8'),
-                                   file_name=f"{vid}.json")
+                st.download_button(
+                    "⬇ transcript (.json)",
+                    json.dumps(transcript, ensure_ascii=False, indent=2).encode('utf-8'),
+                    file_name=f"{vid}.json",
+                    mime="application/json"
+                )
             with col_dl2:
-                st.download_button("⬇ summary (.md)",
-                                   summary.encode('utf-8'),
-                                   file_name=f"{vid}_summary.md")
+                st.download_button(
+                    "⬇ summary (.md)",
+                    summary.encode('utf-8'),
+                    file_name=f"{vid}_summary.md",
+                    mime="text/markdown"
+                )
+
+            # シェアボタン（モバイル対応）
+            st.subheader("🔗 シェア")
+            share_url = f"https://youtu.be/{vid}"
+            st.markdown(f"""
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <a href="https://twitter.com/intent/tweet?url={share_url}&text=YouTube動画の要約" 
+                   target="_blank" 
+                   style="text-decoration: none; padding: 8px 16px; background-color: #1DA1F2; color: white; border-radius: 4px;">
+                    🐦 Twitterでシェア
+                </a>
+                <a href="https://www.facebook.com/sharer/sharer.php?u={share_url}" 
+                   target="_blank"
+                   style="text-decoration: none; padding: 8px 16px; background-color: #4267B2; color: white; border-radius: 4px;">
+                    👥 Facebookでシェア
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # モバイル対応のスタイル
+            st.markdown("""
+            <style>
+            @media (max-width: 768px) {
+                .stButton button {
+                    width: 100%;
+                    margin-bottom: 10px;
+                }
+                .stDownloadButton button {
+                    width: 100%;
+                    margin-bottom: 10px;
+                }
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
     except Exception as e:
         error_message = f"エラーが発生しました: {str(e)}"
