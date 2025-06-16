@@ -79,6 +79,12 @@ def get_transcript_with_ytdlp(video_id: str) -> list[dict]:
                     with open(subtitle_file, 'r', encoding='utf-8') as f:
                         content = f.read()
                     
+                    # デバッグ用のコード
+                    if os.path.exists(subtitle_file):
+                        with open(subtitle_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            logger.info(f"VTT file content:\n{content}")
+                    
                     # VTTをパースしてJSON形式に変換
                     return parse_vtt(content)
                 else:
