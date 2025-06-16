@@ -64,7 +64,7 @@ Each bullet ≤ 25 words. Keep it concise but informative.
 
 # ── Streamlit UI ────────────────────────────────
 st.set_page_config(page_title="YT-Summarizer", page_icon="🎬")
-st.title("🎬 YouTube 要約くん")
+st.title("🎬 YouTube 要約くん DEV")
 
 # セッション状態の初期化
 init_session_state()
