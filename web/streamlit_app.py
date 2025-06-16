@@ -157,6 +157,6 @@ if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
     finally:
         st.session_state.processing = False
 
-# 定期的な更新
+# 処理状態の表示
 if st.session_state.processing:
-    st.experimental_rerun()
+    st.warning("処理中です...")
