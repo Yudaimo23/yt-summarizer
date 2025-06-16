@@ -5,8 +5,7 @@ import json, os, tiktoken, google.generativeai as genai
 from openai import OpenAI, OpenAIError
 from enum import Enum
 
-class Backend(str, Enum):
-    OPENAI = "openai"
+class Backend(Enum):
     GEMINI = "gemini"
 
 _oa_client = OpenAI()
@@ -27,16 +26,37 @@ def _chunk(transcript: List[dict], limit_tokens: int) -> List[str]:
     return out
 
 def _llm_call(text: str, backend: Backend, prompt: str) -> str:
-    if backend == Backend.OPENAI:
-        res = _oa_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": f"{prompt}\n\n{text}"}],
-        )
-        return res.choices[0].message.content.strip()
-    else:                                  # GEMINI
-        mdl = genai.GenerativeModel("gemini-2.0-flash")
-        res = mdl.generate_content(f"{prompt}\n\n{text}")
+    if backend == Backend.GEMINI:
+        res = genai.GenerativeModel("gemini-2.0-flash").generate_content(f"{prompt}\n\n{text}")
         return res.text.strip()
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
+
+def generate_summary_with_gemini(text: str, prompt: str = None) -> str:
+    """
+    Geminiを使用してテキストを要約する
+    """
+    try:
+        # Gemini APIの設定
+        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+        
+        # モデルの設定
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # プロンプトの準備
+        if prompt is None:
+            prompt = """以下のテキストを要約してください。
+            ・重要なポイントを箇条書きで
+            ・簡潔に、かつ内容を維持して
+            ・日本語で出力"""
+        
+        # 要約の生成
+        response = model.generate_content(f"{prompt}\n\n{text}")
+        
+        return response.text
+        
+    except Exception as e:
+        raise Exception(f"要約の生成に失敗しました: {str(e)}")
 
 def summarize(transcript: list[dict], backend: Backend = Backend.GEMINI, prompt: str = None) -> str:
     """
