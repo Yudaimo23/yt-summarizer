@@ -25,6 +25,8 @@ def run(url: str, method: str, backend: Backend = Backend.GEMINI):
         md_path = temp_dir_path / f"{vid}_summary.md"
         summarize(json_path, md_path, backend=backend)
         print(f"✓ summary saved → {md_path}")
+        
+        return tr  # 字幕データを返す
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

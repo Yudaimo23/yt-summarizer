@@ -117,9 +117,9 @@ if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
                 
                 # 字幕取得と保存
                 update_log("字幕を処理中...")
-                pipeline_run(url, "caption")
+                transcript = pipeline_run(url, "caption")  # 戻り値を保存
                 with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(tr, f, ensure_ascii=False, indent=2)
+                    json.dump(transcript, f, ensure_ascii=False, indent=2)  # transcriptを使用
 
                 # 2) 要約生成
                 update_log("要約を生成中...")
