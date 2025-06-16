@@ -47,52 +47,53 @@ def get_transcript(video_id: str, lang="ja") -> list[dict]:
 def get_transcript_with_ytdlp(video_id: str) -> list[dict]:
     """
     yt-dlpを使用して字幕を取得
+    日本語字幕を優先的に取得
     """
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    ydl_opts = {
-        'writesubtitles': True,
-        'writeautomaticsub': True,
-        'subtitleslangs': ['ja', 'en'],
-        'skip_download': True,
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,  # フラットな形式で抽出
-        'ignoreerrors': True,  # エラーを無視して続行
-    }
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        ydl_opts['outtmpl'] = f"{temp_dir}/%(id)s.%(ext)s"
+    try:
+        ydl_opts = {
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['ja', 'ja-JP', 'en'],  # 日本語を優先
+            'skip_download': True,
+            'quiet': True,
+            'no_warnings': True,
+            'outtmpl': f'temp/{video_id}/%(id)s.%(ext)s'
+        }
         
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                logger.info(f"字幕をダウンロード中: {url}")
-                info = ydl.extract_info(url, download=True)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            logger.info(f"yt-dlpで字幕を取得開始: {video_id}")
+            
+            # 動画情報を取得
+            info = ydl.extract_info(f'https://www.youtube.com/watch?v={video_id}', download=True)
+            
+            # 字幕ファイルのパスを取得
+            subtitle_path = None
+            if 'subtitles' in info:
+                # 日本語字幕を優先
+                for lang in ['ja', 'ja-JP', 'en']:
+                    if lang in info['subtitles']:
+                        subtitle_path = info['subtitles'][lang][0]['data']
+                        logger.info(f"字幕ファイルを発見: {lang}")
+                        break
+            
+            if not subtitle_path:
+                logger.warning("字幕ファイルが見つかりません")
+                return []
+            
+            # 字幕の利用可能性を確認
+            if 'subtitles' in info:
+                available_langs = list(info['subtitles'].keys())
+                logger.info(f"利用可能な字幕言語: {available_langs}")
+            
+            # VTTファイルを読み込んでパース
+            with open(subtitle_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                logger.debug(f"字幕ファイルの内容:\n{content}")
+                return parse_vtt(content)
                 
-                # 字幕ファイルのパスを取得
-                subtitle_file = f"{temp_dir}/{video_id}.ja.vtt"
-                if not os.path.exists(subtitle_file):
-                    subtitle_file = f"{temp_dir}/{video_id}.en.vtt"
-                
-                if os.path.exists(subtitle_file):
-                    logger.info(f"字幕ファイルを読み込み中: {subtitle_file}")
-                    # VTTファイルを読み込んでJSON形式に変換
-                    with open(subtitle_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # デバッグ用のコード
-                    logger.debug(f"Original VTT content:\n{content}")
-                    parsed_transcript = parse_vtt(content)
-                    logger.debug(f"Parsed transcript:\n{json.dumps(parsed_transcript, indent=2, ensure_ascii=False)}")
-                    
-                    return parsed_transcript
-                else:
-                    # 字幕ファイルが見つからない場合、自動生成字幕を試す
-                    logger.info("自動生成字幕を試みます...")
-                    return get_auto_generated_subtitles(video_id)
-                    
-        except Exception as e:
-            logger.error(f"字幕取得エラー: {str(e)}")
-            raise Exception(f"字幕の取得に失敗しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"yt-dlpでの取得に失敗: {str(e)}")
+        return []
 
 def get_auto_generated_subtitles(video_id: str) -> list[dict]:
     """
