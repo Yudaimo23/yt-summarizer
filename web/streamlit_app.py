@@ -6,6 +6,22 @@ from pathlib import Path
 import os
 import tempfile
 import json
+import logging
+import time
+from datetime import datetime
+
+# ロギングの設定
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# セッション状態の初期化
+if 'processing' not in st.session_state:
+    st.session_state.processing = False
+if 'last_processed' not in st.session_state:
+    st.session_state.last_processed = None
 
 # Streamlit Cloudの場合は環境変数を直接使用
 os.getenv('STREAMLIT_CLOUD')
@@ -44,6 +60,24 @@ Each bullet ≤ 25 words. Keep it concise but informative.
 st.set_page_config(page_title="YT-Summarizer", page_icon="🎬")
 st.title("🎬 YouTube 要約くん")
 
+# ログ表示用のエリア
+log_container = st.empty()
+
+def update_log(message, level="info"):
+    """ログを更新する関数"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_message = f"[{timestamp}] {message}"
+    
+    if level == "error":
+        logger.error(message)
+        st.error(log_message)
+    elif level == "warning":
+        logger.warning(message)
+        st.warning(log_message)
+    else:
+        logger.info(message)
+        st.info(log_message)
+
 url = st.text_input("YouTube URL", placeholder="https://youtu.be/...")
 st.info("※ 字幕付き動画のみ対応しています（音声文字起こしは行いません）")
 
@@ -61,27 +95,38 @@ prompt = st.text_area("📝 要約プロンプト (指示文だけ書く)",
 backend_enum = Backend.GEMINI
 
 # ③ 実行ボタン
-if st.button("▶ 要約する") and url:
-    with st.spinner("⚙️ 解析中…少し待ってね"):
-        try:
+if st.button("▶ 要約する", disabled=st.session_state.processing) and url:
+    if st.session_state.processing:
+        update_log("別の処理が実行中です。しばらくお待ちください。", "warning")
+        st.stop()
+    
+    try:
+        st.session_state.processing = True
+        update_log("処理を開始します...")
+        
+        with st.spinner("⚙️ 解析中…少し待ってね"):
             # 一時ディレクトリの作成
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_dir_path = Path(temp_dir)
                 
                 # 1) 字幕 JSON 生成
+                update_log("動画の字幕を取得中...")
                 vid = parse_url(url)
                 json_path = temp_dir_path / f"{vid}.json"
                 md_path = temp_dir_path / f"{vid}_summary.md"
                 
                 # 字幕取得と保存
+                update_log("字幕を処理中...")
                 pipeline_run(url, "caption")
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(tr, f, ensure_ascii=False, indent=2)
 
                 # 2) 要約生成
+                update_log("要約を生成中...")
                 summarize(json_path, md_path, backend=backend_enum, prompt=prompt)
 
                 # 3) 結果表示
+                update_log("処理が完了しました！", "info")
                 st.success("✅ 完了！")
 
                 st.subheader("📝 要約")
@@ -101,5 +146,17 @@ if st.button("▶ 要約する") and url:
                                        md_path.read_bytes(),
                                        file_name=f"{vid}_summary.md")
 
-        except Exception as e:
-            st.error(f"⚠ エラー: {e}")
+                # 処理完了時刻を記録
+                st.session_state.last_processed = time.time()
+
+    except Exception as e:
+        error_message = f"エラーが発生しました: {str(e)}"
+        update_log(error_message, "error")
+        st.error(error_message)
+    
+    finally:
+        st.session_state.processing = False
+
+# 定期的な更新
+if st.session_state.processing:
+    st.experimental_rerun()
