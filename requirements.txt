@@ -6,3 +6,4 @@ tiktoken                 # ←★ 追記
 yt-dlp
 youtube-transcript-api
 requests
+ffmpeg-python

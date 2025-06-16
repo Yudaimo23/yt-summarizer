@@ -222,9 +222,18 @@ if st.button("▶ 要約する") and url:
             """, unsafe_allow_html=True)
 
     except Exception as e:
-        error_message = f"エラーが発生しました: {str(e)}"
-        update_log(error_message, "error")
-        st.error(error_message)
+        error_message = str(e)
+        if "字幕の取得に失敗しました" in error_message:
+            st.error("""
+            ⚠️ 字幕の取得に失敗しました。以下の可能性があります：
+            1. この動画には字幕がありません
+            2. 字幕が無効になっています
+            3. アクセスが制限されています
+            
+            別の動画を試すか、しばらく時間をおいて再度お試しください。
+            """)
+        else:
+            st.error(f"エラーが発生しました: {error_message}")
         # デバッグ情報を表示
         st.error("デバッグ情報:")
         st.code(traceback.format_exc())
