@@ -80,13 +80,11 @@ def get_transcript_with_ytdlp(video_id: str) -> list[dict]:
                         content = f.read()
                     
                     # デバッグ用のコード
-                    if os.path.exists(subtitle_file):
-                        with open(subtitle_file, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            logger.info(f"VTT file content:\n{content}")
+                    logger.debug(f"Original VTT content:\n{content}")
+                    parsed_transcript = parse_vtt(content)
+                    logger.debug(f"Parsed transcript:\n{json.dumps(parsed_transcript, indent=2, ensure_ascii=False)}")
                     
-                    # VTTをパースしてJSON形式に変換
-                    return parse_vtt(content)
+                    return parsed_transcript
                 else:
                     # 字幕ファイルが見つからない場合、自動生成字幕を試す
                     logger.info("自動生成字幕を試みます...")
@@ -113,6 +111,7 @@ def get_auto_generated_subtitles(video_id: str) -> list[dict]:
 def parse_vtt(content: str) -> list[dict]:
     """
     VTTファイルをパースしてJSON形式に変換
+    特殊な形式（align:start position:0%など）にも対応
     """
     lines = content.split('\n')
     transcript = []
@@ -121,34 +120,101 @@ def parse_vtt(content: str) -> list[dict]:
     current_duration = None
     
     for line in lines:
+        line = line.strip()
+        
+        # WEBVTTヘッダーをスキップ
+        if line.startswith('WEBVTT') or not line:
+            continue
+            
         if '-->' in line:
             # タイムスタンプ行
-            start, end = line.split(' --> ')
-            current_start = start
-            # 時間の差分を計算
-            start_sec = time_to_seconds(start)
-            end_sec = time_to_seconds(end)
-            current_duration = end_sec - start_sec
-        elif line.strip() and not line.startswith('WEBVTT'):
+            try:
+                # タイムスタンプ部分だけを抽出
+                timestamp_part = line.split(' align:')[0] if ' align:' in line else line
+                start, end = timestamp_part.split(' --> ')
+                current_start = start
+                # 時間の差分を計算
+                start_sec = time_to_seconds(start)
+                end_sec = time_to_seconds(end)
+                current_duration = end_sec - start_sec
+            except Exception as e:
+                logger.error(f"タイムスタンプのパースエラー: {str(e)}")
+                continue
+                
+        elif line and current_start is not None:
             # テキスト行
-            current_text.append(line.strip())
-        elif not line.strip() and current_text:
-            # 空行で区切られた段落の終わり
-            if current_start and current_duration is not None:
-                transcript.append({
-                    'text': ' '.join(current_text),
-                    'start': current_start,
-                    'duration': current_duration
-                })
+            # 特殊なタグを除去
+            clean_text = line
+            # <c>タグを除去
+            clean_text = clean_text.replace('<c>', '').replace('</c>', '')
+            # 時間タグを除去
+            import re
+            clean_text = re.sub(r'<\d{2}:\d{2}:\d{2}\.\d{3}>', '', clean_text)
+            
+            if clean_text.strip():  # 空でない場合のみ追加
+                current_text.append(clean_text.strip())
+            
+            # 次の行が空行またはタイムスタンプの場合、現在のセグメントを保存
+            if not current_text:
+                continue
+                
+            # 重複を除去
+            unique_text = ' '.join(dict.fromkeys(current_text))
+            
+            transcript.append({
+                'text': unique_text,
+                'start': current_start,
+                'duration': current_duration if current_duration is not None else 0.0
+            })
             current_text = []
             current_start = None
             current_duration = None
     
-    return transcript
+    # 最後のセグメントを処理
+    if current_text and current_start is not None:
+        # 重複を除去
+        unique_text = ' '.join(dict.fromkeys(current_text))
+        transcript.append({
+            'text': unique_text,
+            'start': current_start,
+            'duration': current_duration if current_duration is not None else 0.0
+        })
+    
+    # 重複するセグメントを除去
+    unique_transcript = []
+    seen_texts = set()
+    
+    for segment in transcript:
+        if segment['text'] not in seen_texts:
+            seen_texts.add(segment['text'])
+            unique_transcript.append(segment)
+    
+    return unique_transcript
 
 def time_to_seconds(time_str: str) -> float:
     """
     VTTの時間形式を秒に変換
+    例: 00:00:01.000 や 00:01:00,000 などの形式に対応
     """
-    h, m, s = time_str.split(':')
-    return float(h) * 3600 + float(m) * 60 + float(s.replace(',', '.'))
+    try:
+        # カンマをドットに変換
+        time_str = time_str.replace(',', '.')
+        
+        # 時間部分を分割
+        parts = time_str.split(':')
+        
+        if len(parts) == 3:  # HH:MM:SS.mmm 形式
+            hours = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        elif len(parts) == 2:  # MM:SS.mmm 形式
+            minutes = float(parts[0])
+            seconds = float(parts[1])
+            return minutes * 60 + seconds
+        else:
+            logger.warning(f"予期しない時間形式: {time_str}")
+            return 0.0
+    except Exception as e:
+        logger.error(f"時間変換エラー: {str(e)}")
+        return 0.0
